@@ -6,7 +6,7 @@ author       = "AmanCode22"
 license      = "GPL-3.0-or-later"
 icon         = "menu-2"
 description  = "macOS style menu bar: the focused application's menus move into the top bar."
-tags         = ["Bar", "Panel", "Menu", "Window", "System"]
+tags         = ["bar", "panel", "system"]
 dependencies = ["python3", "python3-dbus", "python3-gi"]
 
 [[setting]]
