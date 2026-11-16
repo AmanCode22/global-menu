@@ -62,6 +62,13 @@ open_near_click = true
 keyboard_focus = "exclusive"
 capture_keys = ["Up", "Down", "Return", "Left", "Right"]
 
+[[launcher_provider]]
+id     = "hud"
+entry  = "entries/hud.luau"
+prefix = "hud"
+glyph  = "list-search"
+include_in_global_search = false
+
 [[service]]
 id    = "service"
 entry = "entries/service.luau"

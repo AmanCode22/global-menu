@@ -1,0 +1,159 @@
+--!nonstrict
+-- hud.luau - HUD-style search of the focused application's menus
+--
+-- A launcher provider: type its prefix (default /hud) in the launcher, or
+-- bind a key to `noctalia msg panel-toggle launcher /hud`. Every enabled
+-- item of the focused application's menus becomes one row that reads like
+-- the menu itself ("File › Export   (Ctrl+E)"), so any item can be found by
+-- typing a few letters of it. Choosing a row
+-- sends the same activate command the popup panel uses.
+--
+-- The menu tree comes from the "menu" state key, which the service keeps
+-- current for the focused window; this entry never talks to D-Bus itself.
+
+local SEP = " › "
+local MAX_RESULTS = 200
+
+local keys = {}   -- row id -> daemon activation key, rebuilt per query
+
+-- ---------------------------------------------------------------- helpers
+
+local function postCommand(body)
+    local port = tonumber(noctalia.state.get("port"))
+    if port == nil then return end
+    noctalia.http({
+        url = "http://127.0.0.1:" .. tostring(port) .. "/cmd",
+        method = "POST",
+        headers = {
+            "Content-Type: application/json",
+            "X-GlobalMenu-Token: " .. tostring(noctalia.state.get("token") or ""),
+        },
+        body = noctalia.json.encode(body),
+    }, function() end)
+end
+
+-- "_File" -> "File", "__" -> "_" (GTK/Qt mnemonic markers)
+local function clean(label)
+    local text = tostring(label or "")
+    text = text:gsub("__", "\1"):gsub("_", ""):gsub("\1", "_")
+    return noctalia.string.trim(text)
+end
+
+local function formatAccel(raw)
+    if raw == nil or raw == "" then return nil end
+    local out = tostring(raw):gsub("<([^<>]*)>", function(part)
+        return part .. "+"
+    end)
+    out = out:gsub("+$", ""):gsub("_", " ")
+    if out == "" then return nil end
+    return out
+end
+
+-- every enabled leaf of the tree, in menu order
+local function flatten(nodes, path, out)
+    for _, node in ipairs(nodes or {}) do
+        if type(node) == "table" and node.separator ~= true and
+                node.enabled ~= false then
+            local label = clean(node.label)
+            if type(node.children) == "table" and #node.children > 0 then
+                local sub = table.clone(path)
+                if label ~= "" then table.insert(sub, label) end
+                flatten(node.children, sub, out)
+            elseif label ~= "" then
+                table.insert(out, {
+                    label = label,
+                    path = table.concat(path, SEP),
+                    key = node.key or node.label,
+                    accel = formatAccel(node.accel),
+                    checked = node.toggleState == true and
+                            node.toggleType ~= nil and node.toggleType ~= "",
+                })
+            end
+        end
+    end
+    return out
+end
+
+-- every word of the query must appear in the label or the path; matches
+-- in the label rank above matches only in the path
+local function score(item, words, query)
+    local label = item.label:lower()
+    local hay = label .. " " .. item.path:lower()
+    for _, word in ipairs(words) do
+        if hay:find(word, 1, true) == nil then return nil end
+    end
+    if query == "" then return 0 end
+    if label:sub(1, #query) == query then return 3 end
+    if label:find(query, 1, true) then return 2 end
+    if label:find(words[1], 1, true) then return 1 end
+    return 0
+end
+
+local function message(query, title, subtitle)
+    launcher.setResults(query, { {
+        id = "", title = title, subtitle = subtitle, glyph = "menu-2",
+    } })
+end
+
+-- ---------------------------------------------------------------- launcher
+
+function onQuery(query)
+    keys = {}
+    local menu = noctalia.state.get("menu")
+    local app = type(menu) == "table" and (menu.appName or menu.app) or nil
+    if type(menu) ~= "table" or type(menu.tree) ~= "table" or
+            menu.source == nil or menu.source == "none" then
+        message(query, "No menu for this window", app)
+        return
+    end
+
+    local text = noctalia.string.trim(query):lower()
+    local words = {}
+    for word in text:gmatch("%S+") do table.insert(words, word) end
+
+    local matches = {}
+    for index, item in ipairs(flatten(menu.tree, {}, {})) do
+        local s = score(item, words, text)
+        if s ~= nil then
+            table.insert(matches, { item = item, score = s, order = index })
+        end
+    end
+    -- stable: best score first, then menu order
+    table.sort(matches, function(a, b)
+        if a.score ~= b.score then return a.score > b.score end
+        return a.order < b.order
+    end)
+
+    local rows = {}
+    for i, match in ipairs(matches) do
+        if i > MAX_RESULTS then break end
+        local item = match.item
+        local id = tostring(i)
+        keys[id] = item.key
+        -- one line, the way the menu reads: "File › Export   (Ctrl+E)"
+        local title = item.path ~= "" and (item.path .. SEP .. item.label)
+                or item.label
+        if item.checked then title = "✓ " .. title end
+        if item.accel ~= nil then
+            title = title .. "   (" .. item.accel .. ")"
+        end
+        table.insert(rows, {
+            id = id,
+            title = title,
+            icon = menu.app,
+            glyph = "menu-2",
+        })
+    end
+    if #rows == 0 then
+        message(query, "No matching menu item", app)
+        return
+    end
+    launcher.setResults(query, rows)
+end
+
+function onActivate(id)
+    local key = keys[id]
+    if key ~= nil and key ~= "" then
+        postCommand({ cmd = "activate", key = key })
+    end
+end
