@@ -78,6 +78,7 @@ class Registrar(object):
         self.external = False
         self.registrations = {}      # window_id -> Registration
         self._pid_cache = {}         # sender -> pid
+        self._no_menubar = {}        # sender -> time its probe failed
         self._objects = []
 
         self._observe_name_owner()
@@ -205,6 +206,10 @@ class Registrar(object):
         if registration.identities:
             return registration.identities
         pid = registration.pid = self._sender_pid(registration.sender)
+        registration.identities = self._identity_for_pid(pid)
+        return registration.identities
+
+    def _identity_for_pid(self, pid):
         tokens = set()
         if pid:
             for path in self._proc_paths(pid):
@@ -220,7 +225,6 @@ class Registrar(object):
             except OSError:
                 pass
         tokens.discard('')
-        registration.identities = tokens
         return tokens
 
     @staticmethod
@@ -238,8 +242,7 @@ class Registrar(object):
         if not self.registrations:
             return None
 
-        wanted = {normalize(app_id)}
-        wanted.discard('')
+        wanted = self._wanted(app_id)
         # a window title sometimes carries the binary name; weak signal,
         # used only if identity matching fails below
 
@@ -257,6 +260,85 @@ class Registrar(object):
             best = next(iter(self.registrations.values()))
 
         return (best.sender, best.menu_path) if best else None
+
+
+    @staticmethod
+    def _wanted(app_id):
+        # 'org.kde.dolphin' must match a 'dolphin' binary, so compare the
+        # last segment of reverse-DNS app ids as well as the whole id
+        wanted = {normalize(app_id)}
+        if app_id and '.' in str(app_id):
+            wanted.add(normalize(str(app_id).rsplit('.', 1)[-1]))
+        wanted.discard('')
+        return wanted
+
+    # ------------------------------------------------ unregistered menus
+
+    def discover_unregistered(self, app_id):
+        """Qt applications on compositors without KDE's appmenu Wayland
+        protocol hide their menubar and export it at /MenuBar/<n>, but
+        never call RegisterWindow, so the registrar never hears of them.
+        Look for those objects on the bus connections of processes whose
+        identity matches the focused app, and pick the menubar with the
+        most top-level menus (the main window rather than a tool window)."""
+        wanted = self._wanted(app_id)
+        if not wanted:
+            return None
+        try:
+            obj = self.session.get_object('org.freedesktop.DBus',
+                                          '/org/freedesktop/DBus')
+            names = obj.ListNames(dbus_interface='org.freedesktop.DBus',
+                                  timeout=2)
+        except dbus.exceptions.DBusException:
+            return None
+        now = time.monotonic()
+        best, size = None, 0
+        for name in names:
+            name = str(name)
+            if not name.startswith(':'):
+                continue
+            if now - self._no_menubar.get(name, -NEG_TTL) < NEG_TTL:
+                continue
+            pid = self._sender_pid(name)
+            if not pid or not (self._identity_for_pid(pid) & wanted):
+                continue
+            found = False
+            for path in self._menubar_paths(name):
+                count = self._top_level_count(name, path)
+                if count is None:
+                    continue
+                found = True
+                if count > size:
+                    best, size = (name, path), count
+            if not found:
+                # a hung or menu-less process: do not ask it again soon
+                self._no_menubar[name] = now
+        if best:
+            self._log('unregistered menubar %s %s for %s'
+                      % (best[0], best[1], app_id))
+        return best
+
+    def _menubar_paths(self, name):
+        try:
+            obj = self.session.get_object(name, '/MenuBar',
+                                          introspect=False)
+            xml = str(obj.Introspect(
+                    dbus_interface='org.freedesktop.DBus.Introspectable',
+                    timeout=1))
+        except dbus.exceptions.DBusException:
+            return []
+        return ['/MenuBar/' + node
+                for node in re.findall(r'<node name="(\d+)"', xml)]
+
+    def _top_level_count(self, name, path):
+        try:
+            obj = self.session.get_object(name, path, introspect=False)
+            layout = obj.GetLayout(0, 1, dbus.Array([], signature='s'),
+                                   dbus_interface='com.canonical.dbusmenu',
+                                   timeout=1)
+            return len(layout[1][2])
+        except (dbus.exceptions.DBusException, IndexError, TypeError):
+            return None
 
 
 class _RegistrarService(dbus.service.Object):

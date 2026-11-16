@@ -424,6 +424,8 @@ class GlobalMenuDaemon(object):
 
         match = self.registrar.match(app_id, title, toplevels_available) \
                 if self.registrar else None
+        if match is None and self.registrar and app_id:
+            match = self.registrar.discover_unregistered(app_id)
 
         source = None
         reader = None
