@@ -5,16 +5,16 @@
 -- bind a key to `noctalia msg panel-toggle launcher /hud`. Every enabled
 -- item of the focused application's menus becomes one row that reads like
 -- the menu itself ("File › Export   (Ctrl+E)"), so any item can be found by
--- typing a few letters of it. Choosing a row
--- sends the same activate command the popup panel uses.
+-- typing a few letters of it. Choosing a row sends the same activate
+-- command the popup panel uses.
 --
 -- The menu tree comes from the "menu" state key, which the service keeps
 -- current for the focused window; this entry never talks to D-Bus itself.
+-- Labels arrive without mnemonic markers and accelerators arrive
+-- formatted (accelLabel), so the HUD and the panel always agree.
 
 local SEP = " › "
 local MAX_RESULTS = 200
-
-local keys = {}   -- row id -> daemon activation key, rebuilt per query
 
 -- ---------------------------------------------------------------- helpers
 
@@ -32,29 +32,12 @@ local function postCommand(body)
     }, function() end)
 end
 
--- "_File" -> "File", "__" -> "_" (GTK/Qt mnemonic markers)
-local function clean(label)
-    local text = tostring(label or "")
-    text = text:gsub("__", "\1"):gsub("_", ""):gsub("\1", "_")
-    return noctalia.string.trim(text)
-end
-
-local function formatAccel(raw)
-    if raw == nil or raw == "" then return nil end
-    local out = tostring(raw):gsub("<([^<>]*)>", function(part)
-        return part .. "+"
-    end)
-    out = out:gsub("+$", ""):gsub("_", " ")
-    if out == "" then return nil end
-    return out
-end
-
 -- every enabled leaf of the tree, in menu order
 local function flatten(nodes, path, out)
     for _, node in ipairs(nodes or {}) do
         if type(node) == "table" and node.separator ~= true and
                 node.enabled ~= false then
-            local label = clean(node.label)
+            local label = noctalia.string.trim(tostring(node.label or ""))
             if type(node.children) == "table" and #node.children > 0 then
                 local sub = table.clone(path)
                 if label ~= "" then table.insert(sub, label) end
@@ -63,8 +46,8 @@ local function flatten(nodes, path, out)
                 table.insert(out, {
                     label = label,
                     path = table.concat(path, SEP),
-                    key = node.key or node.label,
-                    accel = formatAccel(node.accel),
+                    key = tostring(node.key or node.label or ""),
+                    accel = node.accelLabel,
                     checked = node.toggleState == true and
                             node.toggleType ~= nil and node.toggleType ~= "",
                 })
@@ -98,7 +81,6 @@ end
 -- ---------------------------------------------------------------- launcher
 
 function onQuery(query)
-    keys = {}
     local menu = noctalia.state.get("menu")
     local app = type(menu) == "table" and (menu.appName or menu.app) or nil
     if type(menu) ~= "table" or type(menu.tree) ~= "table" or
@@ -128,8 +110,6 @@ function onQuery(query)
     for i, match in ipairs(matches) do
         if i > MAX_RESULTS then break end
         local item = match.item
-        local id = tostring(i)
-        keys[id] = item.key
         -- one line, the way the menu reads: "File › Export   (Ctrl+E)"
         local title = item.path ~= "" and (item.path .. SEP .. item.label)
                 or item.label
@@ -137,8 +117,10 @@ function onQuery(query)
         if item.accel ~= nil then
             title = title .. "   (" .. item.accel .. ")"
         end
+        -- the activation key itself is the row id, so a re-query while
+        -- the launcher is open can never shift which item runs
         table.insert(rows, {
-            id = id,
+            id = item.key,
             title = title,
             icon = menu.app,
             glyph = "menu-2",
@@ -152,8 +134,7 @@ function onQuery(query)
 end
 
 function onActivate(id)
-    local key = keys[id]
-    if key ~= nil and key ~= "" then
-        postCommand({ cmd = "activate", key = key })
+    if id ~= nil and id ~= "" then
+        postCommand({ cmd = "activate", key = id })
     end
 end
