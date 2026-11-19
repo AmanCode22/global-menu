@@ -13,7 +13,8 @@ under a » button instead of being cut off.
 | Field | Value |
 | --- | --- |
 | ID | `amancode22/global-menu` |
-| Entries | Bar widget: `menubar`; panel: `menu`; service: `service` |
+| Entries | Bar widget: `menubar`; panel: `menu`; launcher provider: `hud`; service: `service` |
+| Launcher Prefix | `/hud` |
 
 ## Requirements
 
@@ -29,8 +30,10 @@ under a » button instead of being cut off.
   No compositor-specific IPC (`hyprctl`, `niri msg`, `swaymsg`, ...) is used.
 - For native menus, the application must either register with the AppMenu
   registrar (most Qt, Electron, Chromium and Firefox apps) or export a
-  GTK menubar (GTK 3/4 apps). Applications that do neither fall back to
-  curated shortcut menus or window/session actions.
+  GTK menubar (GTK 3/4 apps). Qt applications that export a menubar but
+  never register it (common on compositors without KDE's appmenu protocol)
+  are found on their own D-Bus connection. Applications that do none of
+  this fall back to curated shortcut menus or window/session actions.
 
 ## Usage
 
@@ -56,6 +59,23 @@ widget to your bar. The widget appears only when a window is focused.
 
 ```sh
 noctalia msg panel-toggle amancode22/global-menu:menu
+```
+
+### Menu search (HUD)
+
+Search every item of the focused application's menus by typing, like the
+Unity HUD: type `/hud` in the launcher followed by a few letters of the
+item ("export png", "new tab", "zoom"). Each result shows the item's label,
+its menu path (e.g. *File › Export*) and its accelerator; a checkmark marks
+toggles that are on. Every word you type must appear in the label or the
+path. Activating a result runs the item in the application, exactly like
+clicking it in the popup.
+
+It works without the bar widget, so it is also handy on bars with no room
+for a menu strip. Bind it to a key in your compositor to open it directly:
+
+```sh
+noctalia msg panel-toggle launcher /hud
 ```
 
 ### Custom shortcut menus
