@@ -1,6 +1,6 @@
 id           = "amancode22/global-menu"
 name         = "Global Menu"
-version      = "1.0.0"
+version      = "1.5.0"
 plugin_api   = 24
 author       = "amancode22"
 license      = "GPL-3.0-or-later"
