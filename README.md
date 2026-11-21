@@ -152,9 +152,13 @@ estimates.
 
 ## Troubleshooting
 
-- **Widget never appears.** Check that `python3-dbus` and `python3-gi` are
-  installed; on failure the plugin raises a notification saying exactly that.
-  Plugin log lines carry the `[global-menu]` prefix.
+- **Widget never appears.** Check that `python3`, `python3-dbus` and
+  `python3-gi` are installed and visible to the `python3` on Noctalia's
+  `PATH`. If the daemon cannot start three times in a row, the plugin stops
+  retrying and raises a notification with the daemon's last error line (for
+  example `ModuleNotFoundError: No module named 'dbus'`); reload the plugin
+  after fixing it. Plugin log lines, including the daemon's error output,
+  carry the `[global-menu]` prefix.
 - **"No menu for this window" in the popup.** The focused app exposes neither
   a D-Bus menu nor a GTK menubar and shortcut/fallback menus are disabled (or
   the app has no curated mapping). Try enabling *Shortcut menus* and
