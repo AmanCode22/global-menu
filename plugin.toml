@@ -69,6 +69,13 @@ prefix = "hud"
 glyph  = "list-search"
 include_in_global_search = false
 
+[[launcher_provider]]
+id     = "menu-hud"
+entry  = "entries/menu-hud.luau"
+prefix = "menu-hud"
+glyph  = "list-tree"
+include_in_global_search = false
+
 [[service]]
 id    = "service"
 entry = "entries/service.luau"
