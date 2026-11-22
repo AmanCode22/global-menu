@@ -14,7 +14,7 @@ under a » button instead of being cut off.
 | --- | --- |
 | ID | `amancode22/global-menu` |
 | Entries | Bar widget: `menubar`; panel: `menu`; launcher providers: `hud`, `menu-hud`; service: `service` |
-| Launcher Prefix | `/hud`, `/menu-hud` |
+| Launcher Prefix | `/hud`, `/menuhud` |
 
 ## Requirements
 
@@ -78,13 +78,13 @@ for a menu strip. Bind it to a key in your compositor to open it directly:
 noctalia msg panel-toggle launcher /hud
 ```
 
-To browse the menus instead, type `/menu-hud`. With nothing typed it lists
+To browse the menus instead, type `/menuhud`. With nothing typed it lists
 the top-level menus (*File ›*, *Edit ›*, ...); choosing one (Enter or click)
 opens it, and *‹ Back* goes up a level. Typing searches like `/hud`: at the
 top level across every menu, inside a menu only within that menu.
 
 ```sh
-noctalia msg panel-toggle launcher /menu-hud
+noctalia msg panel-toggle launcher /menuhud
 ```
 
 ### Custom shortcut menus
