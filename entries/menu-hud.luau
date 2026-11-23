@@ -1,7 +1,7 @@
 --!nonstrict
 -- menu-hud.luau - browse the focused application's menus as a tree
 --
--- A launcher provider (default prefix /menu-hud). With an empty query it
+-- A launcher provider (default prefix /menuhud). With an empty query it
 -- lists the top-level menus ("File ›", "Edit ›", ...). Choosing a menu
 -- (Enter or click) opens it by setting the query to its path
 -- ("File › "), which lists that menu's items and submenus, and so on
