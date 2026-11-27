@@ -37,11 +37,18 @@ local syncFromState
 -- neighbours so the list never reads as one merged block
 -- Corner radii follow the shell's roundness setting (shell.corner_radius_scale,
 -- plugin API 26+); the raw pixel value is used if the setting cannot be read.
-local function getRadius(baseRadius)
+-- The scale is read once at the start of each render, not once per element, and
+-- render() runs again whenever the config reloads, so changes still show up.
+local radiusScale = nil
+
+local function refreshRadiusScale()
     local ok, scale = pcall(noctalia.getSetting, "shell.corner_radius_scale")
-    if ok and type(scale) == "number" then
-        return math.floor(baseRadius * scale)
-    end
+    radiusScale = (ok and type(scale) == "number") and scale or false
+end
+
+local function getRadius(baseRadius)
+    if radiusScale == nil then refreshRadiusScale() end
+    if radiusScale then return math.floor(baseRadius * radiusScale) end
     return baseRadius
 end
 
@@ -451,7 +458,7 @@ local function identityHeader()
                                    radius = getRadius(5), fit = "contain" })
     else
         row[#row + 1] = ui.glyph({ name = "app-window", size = 16,
-                                   color = "primary" })
+                                   color = accentRole() })
     end
     row[#row + 1] = ui.label({ text = name, fontWeight = "bold",
                                color = "on_surface", maxLines = 1 })
@@ -518,7 +525,7 @@ local function renderAbout()
         gap = 8,
         align = "center",
         radius = getRadius(ROW_RADIUS),
-        fill = "primary/0.10",
+        fill = accentRole() .. "/0.10",
         paddingH = ROW_PAD_H,
         onClick = function()
             noctalia.state.set("openMenu", "__app__")
@@ -526,9 +533,9 @@ local function renderAbout()
             render()
         end,
     }, {
-        ui.glyph({ name = "chevron-left", size = 14, color = "primary" }),
+        ui.glyph({ name = "chevron-left", size = 14, color = accentRole() }),
         ui.label({ text = "About", fontWeight = "semibold",
-                   color = "primary", maxLines = 1 }),
+                   color = accentRole(), maxLines = 1 }),
         ui.box({ flexGrow = 1 }),
         ui.label({ text = "Back", color = "on_surface/0.45", fontSize = 11 }),
     }))
@@ -542,7 +549,7 @@ local function renderAbout()
                                      radius = getRadius(12), fit = "contain" })
     else
         body[#body + 1] = ui.glyph({ name = "app-window", size = 40,
-                                     color = "primary" })
+                                     color = accentRole() })
     end
     body[#body + 1] = ui.label({ text = name, fontWeight = "bold",
                                  color = "on_surface", fontSize = 15,
@@ -574,6 +581,7 @@ end
 
 -- global so early helpers (activate) and event closures all see one render
 function render()
+    refreshRadiusScale()
     if mode == MODE_ABOUT then
         renderAbout()
         return
@@ -626,7 +634,7 @@ function render()
             gap = 8,
             align = "center",
             radius = getRadius(ROW_RADIUS),
-            fill = "primary/0.10",
+            fill = accentRole() .. "/0.10",
             paddingH = ROW_PAD_H,
             onClick = function()
                 table.remove(nav)
@@ -635,9 +643,9 @@ function render()
                 render()
             end,
         }, {
-            ui.glyph({ name = "chevron-left", size = 14, color = "primary" }),
+            ui.glyph({ name = "chevron-left", size = 14, color = accentRole() }),
             ui.label({ text = label, fontWeight = "semibold",
-                       color = "primary", maxLines = 1 }),
+                       color = accentRole(), maxLines = 1 }),
             ui.box({ flexGrow = 1 }),
             ui.label({ text = parentLabel ~= "" and parentLabel or "Back",
                        color = "on_surface/0.45", fontSize = 11 }),

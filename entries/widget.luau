@@ -11,11 +11,18 @@ local PANEL_ID = "amancode22/global-menu:menu"
 
 -- Corner radii follow the shell's roundness setting (shell.corner_radius_scale,
 -- plugin API 26+); the raw pixel value is used if the setting cannot be read.
-local function getRadius(baseRadius)
+-- The scale is read once at the start of each render, not once per element, and
+-- render() runs again whenever the config reloads, so changes still show up.
+local radiusScale = nil
+
+local function refreshRadiusScale()
     local ok, scale = pcall(noctalia.getSetting, "shell.corner_radius_scale")
-    if ok and type(scale) == "number" then
-        return math.floor(baseRadius * scale)
-    end
+    radiusScale = (ok and type(scale) == "number") and scale or false
+end
+
+local function getRadius(baseRadius)
+    if radiusScale == nil then refreshRadiusScale() end
+    if radiusScale then return math.floor(baseRadius * radiusScale) end
     return baseRadius
 end
 
@@ -237,6 +244,7 @@ end
 -- ----------------------------------------------------------------- render
 
 local function render()
+    refreshRadiusScale()
     local name = appName()
     if data == nil or (name == nil and #visibleMenus() == 0) then
         barWidget.setVisible(false)

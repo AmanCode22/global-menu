@@ -18,6 +18,8 @@ under a » button instead of being cut off.
 
 ## Requirements
 
+- Noctalia with plugin API level 26 or newer, which is needed to read the
+  shell's corner radius. Version 1.6.0 raised this from level 24.
 - `python3` with `python3-dbus` and `python3-gi` on `PATH` (the manifest
   declares exactly these). The plugin spawns its Python companion daemon
   automatically; you never run it by hand.
