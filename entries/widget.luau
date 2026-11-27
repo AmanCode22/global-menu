@@ -9,6 +9,51 @@
 
 local PANEL_ID = "amancode22/global-menu:menu"
 
+-- Corner radii follow the shell's roundness setting (shell.corner_radius_scale,
+-- plugin API 26+); the raw pixel value is used if the setting cannot be read.
+-- The scale is read once at the start of each render, not once per element, and
+-- render() runs again whenever the config reloads, so changes still show up.
+local radiusScale = nil
+
+local function refreshRadiusScale()
+    local ok, scale = pcall(noctalia.getSetting, "shell.corner_radius_scale")
+    radiusScale = (ok and type(scale) == "number") and scale or false
+end
+
+local function getRadius(baseRadius)
+    if radiusScale == nil then refreshRadiusScale() end
+    if radiusScale then return math.floor(baseRadius * radiusScale) end
+    return baseRadius
+end
+
+-- Highlight appearance comes from two plugin settings; the defaults ("primary",
+-- "tint") reproduce the original faint primary tint.
+local ACCENT_ROLES = { primary = true, secondary = true, tertiary = true }
+
+local function accentRole()
+    local role = noctalia.getConfig("highlight_color")
+    if ACCENT_ROLES[role] then return role end
+    return "primary"
+end
+
+local function isSolid()
+    return noctalia.getConfig("highlight_style") == "solid"
+end
+
+-- Fill of a lit element: a faint tint (alpha is the tint strength) or the solid role.
+local function litFill(alpha)
+    local role = accentRole()
+    if isSolid() then return role end
+    return role .. "/" .. alpha
+end
+
+-- Text or glyph colour on a lit element.
+local function litForeground()
+    local role = accentRole()
+    if isSolid() then return "on_" .. role end
+    return role
+end
+
 -- reserved openMenu labels the popup panel understands
 local APP_MENU = "__app__"
 local OVERFLOW_MENU = "__overflow__"
@@ -199,6 +244,7 @@ end
 -- ----------------------------------------------------------------- render
 
 local function render()
+    refreshRadiusScale()
     local name = appName()
     if data == nil or (name == nil and #visibleMenus() == 0) then
         barWidget.setVisible(false)
@@ -222,15 +268,15 @@ local function render()
             gap = 0,
             align = "center",
             paddingH = PILL_PAD_H,
-            radius = 6,
-            fill = appActive and "primary/0.16" or nil,
+            radius = getRadius(6),
+            fill = appActive and litFill("0.16") or nil,
             onClick = function() openOrToggle() end,
             tooltip = tooltip,
         }, {
             ui.label({
                 text = name,
                 fontWeight = "bold",
-                color = "primary",
+                color = appActive and litForeground() or accentRole(),
             }),
         }))
     end
@@ -244,13 +290,13 @@ local function render()
             gap = 0,
             align = "center",
             paddingH = PILL_PAD_H,
-            radius = 6,
-            fill = active and "primary/0.16" or nil,
+            radius = getRadius(6),
+            fill = active and litFill("0.16") or nil,
             onClick = function() onMenuClick(label) end,
             tooltip = label,
         }, {
             ui.label({ text = label,
-                       color = active and "primary" or nil }),
+                       color = active and litForeground() or nil }),
         }))
     end
 
@@ -262,14 +308,14 @@ local function render()
             gap = 0,
             align = "center",
             paddingH = PILL_PAD_H,
-            radius = 6,
-            fill = moreActive and "primary/0.16" or nil,
+            radius = getRadius(6),
+            fill = moreActive and litFill("0.16") or nil,
             onClick = function() onMenuClick(OVERFLOW_MENU) end,
             tooltip = "More menus",
         }, {
             ui.glyph({
                 name = "chevrons-right", size = 14,
-                color = moreActive and "primary" or "on_surface/0.6",
+                color = moreActive and litForeground() or "on_surface/0.6",
             }),
         }))
     end
